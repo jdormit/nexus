@@ -1,0 +1,175 @@
+#!/usr/bin/env ruby
+require 'bundler/setup'
+require 'commander/import'
+require 'openai'
+
+program :name, 'nexus'
+program :version, '0.0.1'
+program :description, 'Scaffold codebases using an LLM'
+
+OpenAI.configure do |config|
+  config.access_token = ENV['OPENAI_API_KEY']
+  config.uri_base = ENV.fetch('OPENAI_API_URI', 'https://api.openai.com')
+end
+
+def model
+  ENV.fetch('OPENAI_MODEL', 'gpt-4o')
+end
+
+command :create do |c|
+  c.syntax = 'nexus create DESCRIPTION'
+  c.description = 'Create a new codebase based on a description'
+  c.action do |args, options|
+    description = args.join(' ')
+
+    program_name = ask('What is the name of the program?')
+    program_dir = ask('Where would you like to put the codebase?') { |q| q.default = program_name }
+
+    # Step 1: Get the overview from the LLM
+    say "Overview:"
+    overview = get_overview_from_llm(description)
+    say "\n"
+
+    confirmed = agree('Do you confirm this plan?') { |q| q.default = 'yes' }
+
+    while not confirmed
+      feedback = ask('Please provide your feedback:')
+      say "Updated overview:"
+      overview = iterate_overview_with_feedback(description, feedback)
+      say "\n"
+      confirmed = agree('Do you confirm this plan now?') { |q| q.default = 'yes' }
+    end
+
+    # Step 2: Generate codebase
+    generate_codebase(overview, program_dir)
+
+    # Step 3: Generate README, tests, and test command
+    generate_readme(program_dir, overview)
+    generate_tests(program_dir, overview)
+    test_command = get_test_command(program_dir)
+
+    # Step 4: Run test command
+    say "The test command is: #{test_command}"
+    # if agree('Do you want to run the tests now?') { |q| q.default = 'yes' }
+    #   success = system(test_command)
+    #   if not success
+    #     errors = get_errors()
+    #     iterate_until_tests_pass(description, program_dir, errors)
+    #   end
+    # end
+  end
+end
+
+def get_overview_from_llm(description)
+  client = OpenAI::Client.new
+  response = ""
+  client.chat(
+    parameters: {
+      model:,
+      messages: [
+        { role: 'system', content: "You are a highly skilled software architect. Provide an overview of the codebase architecture based on the user's project description. Be sure to include key components and their interactions. Be concise. Reply in plain text without any markup language (NO MARKDOWN)." },
+        { role: 'user', content: "Project Description: #{description}" }
+      ],
+      stream: proc do |chunk, _bytesize|
+        content = chunk.dig("choices", 0, "delta", "content").to_s
+        print content
+        response << content
+      end
+    }
+  )
+  return response
+end
+
+def iterate_overview_with_feedback(description, feedback)
+  prompt = <<~PROMPT
+    Here is an overview of the codebase architecture:
+    #{description}
+
+    Here is the feedback from the user:
+    #{feedback}
+
+    Please refine the architecture based on the feedback.
+  PROMPT
+
+  client = OpenAI::Client.new
+  response = ""
+  client.chat(
+    parameters: {
+      model:,
+      messages: [
+        { role: 'system', content: "You are a highly skilled software architect. Refine the codebase architecture according to the feedback provided by the user. Reply in plain text without any markup (NO MARKDOWN). Do not write code, just revise the architecture overview." },
+        { role: 'user', content: prompt }
+      ],
+      stream: proc do |chunk, _bytesize|
+        content = chunk.dig("choices", 0, "delta", "content").to_s
+        print content
+        response << content
+      end
+    }
+  )
+  return response
+end
+
+def generate_codebase(overview, program_dir)
+  # Here you would call the LLM to generate files and use the write_file tool
+  # This is just a placeholder implementation
+  Dir.mkdir(program_dir) unless Dir.exist?(program_dir)
+  write_file("#{program_dir}/main.rs", "// This is your main file\nfn main() {\n    println!(\"Hello, world!\");\n}")
+end
+
+def generate_readme(program_dir, overview)
+  readme_content = "# #{program_dir.capitalize}\n\n#{overview}"
+  write_file("#{program_dir}/README.md", readme_content)
+end
+
+def generate_tests(program_dir, overview)
+  # This is a placeholder implementation
+  test_content = "#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_works() {\n        assert_eq!(2 + 2, 4);\n    }\n}"
+  write_file("#{program_dir}/tests.rs", test_content)
+end
+
+def get_test_command(program_dir)
+  return "cd #{program_dir} && cargo test"
+end
+
+def get_errors()
+  # Placeholder function to collect errors
+  return "Error log here"
+end
+
+def iterate_until_tests_pass(description, program_dir, errors)
+  prompt = <<~PROMPT
+    Here is an overview of the codebase architecture:
+    #{description}
+
+    Here are the errors from the test run:
+    #{errors}
+
+    Please refine the codebase to fix these errors.
+  PROMPT
+
+  client = OpenAI::Client.new
+  response = client.chat(
+    parameters: {
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: "You are a highly skilled software developer. Refine the codebase to fix the errors from the test run." },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 400
+    }
+  )
+  changes = response['choices'].first['message']['content'].strip
+
+  # Apply LLM changes to the codebase and retry the tests
+  # ...
+end
+
+def write_file(filepath, content)
+  dir = File.dirname(filepath)
+  Dir.mkdir(dir) unless Dir.exist?(dir)
+
+  File.open(filepath, 'w') do |f|
+    f.write(content)
+  end
+end

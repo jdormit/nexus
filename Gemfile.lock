@@ -1,0 +1,49 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    commander (5.0.0)
+      highline (~> 3.0.0)
+    debug (1.9.2)
+      irb (~> 1.10)
+      reline (>= 0.3.8)
+    event_stream_parser (1.0.0)
+    faraday (2.10.1)
+      faraday-net_http (>= 2.0, < 3.2)
+      logger
+    faraday-multipart (1.0.4)
+      multipart-post (~> 2)
+    faraday-net_http (3.1.1)
+      net-http
+    highline (3.0.1)
+    io-console (0.7.2)
+    irb (1.14.0)
+      rdoc (>= 4.0.0)
+      reline (>= 0.4.2)
+    logger (1.6.0)
+    multipart-post (2.4.1)
+    net-http (0.4.1)
+      uri
+    psych (5.1.2)
+      stringio
+    rdoc (6.7.0)
+      psych (>= 4.0.0)
+    reline (0.5.9)
+      io-console (~> 0.5)
+    ruby-openai (7.1.0)
+      event_stream_parser (>= 0.3.0, < 2.0.0)
+      faraday (>= 1)
+      faraday-multipart (>= 1)
+    stringio (3.1.1)
+    uri (0.13.0)
+
+PLATFORMS
+  ruby
+  x86_64-darwin-23
+
+DEPENDENCIES
+  commander
+  debug
+  ruby-openai
+
+BUNDLED WITH
+   2.5.6
